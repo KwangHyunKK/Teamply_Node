@@ -1,0 +1,2 @@
+Gmail 앱 비밀번호 설정, SMTP 등의 내용 참고 : https://hyunmin1906.tistory.com/276
+Node.js로 메일링 하는 코드 출처 : https://mintaku.tistory.com/25
