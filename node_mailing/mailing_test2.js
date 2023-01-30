@@ -75,4 +75,4 @@ async function sendPDFMail(senderName,senderEmail,senderPass,senderSmtp,senderPo
     */
 }
 
-sendPDFMail('팀플리','nayoung657145@gmail.com','yekersrhhqoqfies','smtp.gmail.com',587,'skdud657145@gmail.com');
+sendPDFMail('팀플리','nayoung657145@gmail.com','','smtp.gmail.com',587,'skdud657145@gmail.com');
