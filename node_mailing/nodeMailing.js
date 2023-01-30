@@ -9,7 +9,7 @@ function emailContent(subject, html){
     emailHtml = html;
 }
 
-// PDF 파일을 메일에 첨부하여 보낸 뒤 삭제.
+//메일 보내기
 async function sendPDFMail(senderName,senderEmail,senderPass,senderSmtp,senderPort,receivers){
 
     // 수신자에게 메일 전송
