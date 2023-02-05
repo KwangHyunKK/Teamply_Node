@@ -18,6 +18,7 @@ const refreshkey = process.env.refreshkey;
 // Issue access token 
 const sign = (user) =>{
     const payload = {
+        id : user.id,
         hash: user.hash,
         ip: user.ip,
     };
@@ -35,6 +36,7 @@ const verify = (token) => {
         decoded = jwt.verify(token, secret);
         return{
             ok: true,
+            id : decoded.id,
             hash: decoded.hash,
             ip: decoded.ip,
         };
