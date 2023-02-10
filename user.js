@@ -90,7 +90,11 @@ router.post('/login', async(req, res)=>{
         if(result[0].ip != ip){
             otherquery = `UPDATE Users set updateIP = ${ip} where user_id = ${result[0].id}`;
             await conn.query(otherquery);
-            mail.sendPDFMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email, mail.DifferentIP(ip_util.inet_ntoa(result[0].ip),requestIP.getClientIp(req)));
+            mail.sendPDFMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email,
+            {"emailSubject" : '[Teamply] User 다른 IP 로그인', 
+            "emailHtml" : `<b>안녕하세요, ${result[0].name}님.</b> <br/>
+            <b>기존 ${result[0].ip}가 아닌 ${ip}에서 접속이 확인되었습니다.</b> <br/>
+            <b>팀플리와 함께 즐거운 팀플되세요:) </b>`} );
             message = message + 'from another IP';
         }
         await conn.query(jwtQuery);
