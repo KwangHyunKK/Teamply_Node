@@ -21,16 +21,20 @@ router.post('/', authJWT, async(req, res)=>{
     try{
         // proj member add 
         // user Transaction
+        const query = `select Exists(select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${sch.proj_id}) as success`;
         const query1 = `insert into Schedule(proj_id, sch_title, sch_num, sch_contents, sch_progress, sch_startAt, sch_endAt)
         select proj_id, ${sch.sch_title}, ${0}, ${sch.sch_contents}, ${sch.sch_progress}, ${sch.startAt}, ${sch.endAt} from Project where proj_id = ${sch.proj_id}`;
-        const query2 = `select sch_id, proj_id from Schedule where sch_id = last_insert_id()`;
-        console.log(query1);
+        const query2 = `select sch_id, proj_id from Schedule where proj_id = ${sch.proj_id} and sch_title = ${sch.sch_title}`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
+        const [result2] = await conn.query(query);
+        if(result2[0].success == 0)throw Error('No authorized!'); // 다른 proj에 대한 권한이 없다
+        const [result1] = await conn.query(query2);
+        if(result1[0] != null)throw Error('already exist!');
         await conn.query(query1);
         const [result] = await conn.query(query2);
-        if(result[0] == null)throw Error();
+        if(result[0] == null)throw Error('no update!');
         await conn.commit();
         conn.release();
         return res.status(200).send({
@@ -58,17 +62,20 @@ router.delete('/', authJWT, async(req, res)=>{
     let conn = null;
     try{
         // user Transaction
-        const query1 = `delete from ScheduleMember where user_id = ${req.user_id} and proj_id = ${req.body.proj_id} and sch_id = ${req.body.sch_id}`;
+        const query1 = `delete from ScheduleMember where sch_id = ${req.body.sch_id}`;
+        const query2 = `select Exists(select * from ScheduleMember where sch_id = ${req.body.sch_id}) as success`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         await conn.query(query1);
+        const [result] = await conn.query(query2);
+        if(result[0].success != 0)throw Error("delete error!");
+        // End Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send('200 ok');
     }catch(err){
         console.log('get user DB connection Error!');
-        console.log(message);
         res.status(404).send('404 error!');
         if(conn!=null){
             await conn.rollback();
@@ -85,14 +92,14 @@ router.put('/', authJWT, async(req, res)=>{
         // proj member add 
         const users = req.body.proj_member;
         // user Transaction
-        const query1 = `select user_id from ScheduleMember where sch_id = ${sch.sch_id} and proj_id = ${sch.proj_id} and user_id = ${req.user_id}`;
+        const query1 = `select Exists(select * from ScheduleMember where sch_id = ${sch.sch_id} and proj_id = ${sch.proj_id} and user_id = ${req.user_id}) as success`;
         const query2 = `update Schedule set sch_title = ${sch.sch_title}, sch_contents = ${sch.sch_contents}, sch_progress = ${sch.sch_progress}, 
-        sch_startAt = ${sch.startAt}, sch_endAt = ${sch.endAt} where sch_id = ${sch.sch_id} and proj_id = ${sch.proj_id}`;
+        sch_endAt = ${sch.endAt} where sch_id = ${sch.sch_id} and proj_id = ${sch.proj_id}`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0] ==  null)throw Error('Not exist data!');
+        if(result[0].success == 0)throw Error('Not exist data!');
         await conn.query(query2);
         await conn.commit();
         conn.release();
@@ -122,18 +129,18 @@ router.post('/member', authJWT, async(req, res)=>{
         // proj member add 
         var string = req.body.user_id.substr(1, req.body.user_id.length-2);
         // user Transaction
-        const query1 = `select user_id from ScheduleMember where sch_id = ${sch.sch_id} and proj_id = ${sch.proj_id}`;
+        const query1 = `select Exists(select * from ScheduleMember where user_id = ${req.user_id} and sch_id = ${req.body.sch_id}) as success`;
         const query2 = `insert into ScheduleMember(user_id, sch_id, proj_id) select user_id, sch_id, a.proj_id
-        from (select user_id, proj_id from ProjectMember where user_id in (${string})) 
+        from (select * from ProjectMember where user_id in (${string})) 
         as a join (select sch_id, proj_id from Schedule where proj_id = ${sch.proj_id}) as b on a.proj_id = b.proj_id where sch_id = ${sch.sch_id};`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         const [result1] = await conn.query(query1);
-        if(result1[0] != null)throw Error(' already exist!');
+        if(result1[0].success != 0)throw Error(' already exist!');
         await conn.query(query2);
         const [result2] = await conn.query(query1);
-        if(result2[0] == null)throw Error();
+        if(result2[0].success == 0)throw Error('');
         await conn.commit();
         conn.release();
         return res.status(200).send({
@@ -155,18 +162,52 @@ router.post('/member', authJWT, async(req, res)=>{
     }
 })
 
+router.delete('/member', authJWT, async(req, res)=>{
+    let conn = null;
+    try{
+        const string = req.body.user_id.substr(1, req.body.user_id.length-2);
+        const query1 = `delete from ScheduleMember where user_id in ${string} and proj_id = ${req.body.proj_id} and sch_id = ${req.body.sch_id}`;
+        const query2 = `select exists(select * from ScheduleMember where sch_id = ${req.body.sch_id} and user_id in ${string}) as success`
+        conn = await db.getConnection();
+        // start Transaction
+        await conn.beginTransaction();
+        await conn.query(query1);
+        conn [result] = await conn.query(query2);
+        if(result[0].success != 0)throw Error("delete error!");
+        await conn.commit();
+        conn.release();
+        return res.status(200).send('200 ok');
+    }catch(err){
+        console.log('get user DB connection Error!');
+        console.log(message);
+        res.status(404).send('404 error!');
+        if(conn!=null){
+            await conn.rollback();
+            conn.release();
+        }
+    }
+})
+
 // check schedule member
 router.get('/member/:projid/:schid', async(req, res)=>{
     let conn = null;
     try{
-        const query = `select a.user_id, user_name, user_email
-        from (select * from ScheduleMember where sch_id = ${req.params.schid} and proj_id = ${req.params.projid}) as a join 
-        (select * from ProjectMember where proj_id = ${req.params.projid}) as b on a.user_id = b.user_id;`;
+        const query1 = `select Exists(select * from Schedule where proj_id = ${req.params.projid} and sch_id = ${req.params.schid}) as success`
+        const query2 = `select ProjectMember.user_id, user_name, user_email
+        from ScheduleMember join ProjectMember on ScheduleMember.user_id = ProjectMember.user_id
+        where ScheduleMember.sch_id = ${req.params.schid}`;
         conn = await db.getConnection();
-        const [result] = await conn.query(query);
+        // start Transaction
+        await conn.beginTransaction();
+        const [result1] = await conn.query(query1);
+        if(result1[0].succcess == 0)throw Error('No authorized!');
+        const [result] = await conn.query(query2);
+        await conn.commit();
         conn.release();
         return res.status(200).send(result);
     }catch(err){
+        await conn.rollback();
+        conn.release();
         return res.status(401).send("401 error");
     }
 });
@@ -175,8 +216,9 @@ router.get('/member/:projid/:schid', async(req, res)=>{
 router.get('/my', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select sch_id, proj_id, sch_title, sch_intro, sch_progress, sch_startAt, sch_endAt
+        const query = `select sch_id, proj_id, sch_title, sch_contents, sch_progress, sch_startAt, sch_endAt
         from Schedule where proj_id in (select proj_id from ScheduleMember where user_id = ${req.user_id});`;
+        console.log(query);
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         console.log(result[0]);
@@ -187,10 +229,10 @@ router.get('/my', authJWT, async(req, res)=>{
     }
 });
 
-router.get('/', async(req, res)=>{
+router.get('/:projid', async(req, res)=>{
     let conn = null;
     try{
-        const query = `select * from Schedule join ScheduleMember on Schedule.proj_id = ScheduleMember.proj_id where projd_id = ${projid}`;
+        const query = `select * from Schedule join ScheduleMember on Schedule.proj_id = ScheduleMember.proj_id where projd_id = ${req.params.projid}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
