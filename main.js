@@ -7,7 +7,6 @@ const schRouter = require('./schedule');
 // const alarmRouter = require('./alarm');
 const timetable = require('./timetable');
 const crypto = require('crypto');
-const email = require('./middleware/email');
 const logger = require('./config/logger');
 const morganMiddleware = require('./config/morganMiddleware');
 const server = app.listen(3000, '0.0.0.0', ()=>{
@@ -37,7 +36,7 @@ app.get('/:email', async(req, res)=>{
     }
 })
 
-app.use('/user', userRouter, email.sendActivateMail);
+app.use('/user', userRouter);
 app.use('/project', projRouter);
 app.use('/schedule', schRouter);
 // app.use('/alarm', alarmRouter);
