@@ -23,19 +23,20 @@ router.post('/', authJWT, async(req, res)=>{
         // user Transaction
         const query1 = `select proj_id from Project where proj_name = ${proj.name} and proj_contents = ${proj.contents}`;
         const query2 = `insert into Project(proj_name, proj_headcount, proj_realcount, proj_startAt, proj_endAt, proj_contents) 
-        Values(${proj.name}, ${proj.headcount}, ${0}, ${proj.startAt}, ${proj.endAt}, ${proj.contents})`;
-        const query3 = `insert into ProjectMember(user_id, proj_id, user_name, user_email, proj_name, proj_contents, proj_color) 
-        select user_id, proj_id, user_name, user_email, proj_name, proj_contents, ${proj.color}
-        from Users join Project on Project.proj_name = ${proj.name} and Project.proj_contents = ${proj.contents}
-        where Users.user_id = ${req.user_id}`;
+        Values(${proj.name}, ${proj.headcount}, ${1}, ${proj.startAt}, ${proj.endAt}, ${proj.contents})`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         const [result1] = await conn.query(query1);
         if(result1[0] != null)throw Error();
         await conn.query(query2);
-        await conn.query(query3);
         const [result] = await conn.query(query1);
+        const query3 = `insert into ProjectMember(user_id, proj_id, user_name, user_email, proj_name, proj_contents, proj_color) 
+        select user_id, proj_id, user_name, user_email, proj_name, proj_contents, ${proj.color}
+        from Users join Project on Project.proj_id = ${result[0].proj_id}
+        where Users.user_id = ${req.user_id}`;
+        await conn.query(query3);
+        // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
@@ -66,15 +67,16 @@ router.put('/', authJWT, async(req, res)=>{
     const proj = req.body;
     try{
         // user Transaction
-        const query1 = `select user_id from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
+        const query1 = `select Exists (select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj.proj_id}) as success`;
         const query2 = `update ProjectMember set proj_name = ${proj.proj_name}, proj_contents = ${proj.proj_contents}, proj_color = ${proj.proj_color}, updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
         console.log(query1);
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0].user_id == null)throw Error();
+        if(result[0].success == 0)throw Error('No Project!');
         await conn.query(query2);
+        // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
@@ -102,12 +104,15 @@ router.delete('/', authJWT, async(req, res)=>{
     try{
         // user Transaction
         const query1 = `delete from ScheduleMember where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
-        const query2 = `delete from ProjectMember where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
+        const query2 = `delete from UserReview where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
+        const query3 = `delete from ProjectMember where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         await conn.query(query1);
         await conn.query(query2);
+        await conn.query(query3);
+        // end Transaction 
         await conn.commit();
         conn.release();
         return res.status(200).send({
@@ -138,7 +143,7 @@ router.post('/code', authJWT, async(req, res)=>{
         const query1 = `select in_hash from (select * from ProjInvite where proj_id = ${req.body.proj_id}) as a join
         (select * from ProjectMember where proj_id = ${req.body.proj_id} and user_id = ${req.user_id}) as b on 
         a.proj_id = b.proj_id`;
-        const query2 = `insert into ProjInvite(in_hash, proj_id, is_timeless) select left(sha1(concat(proj_name, proj_startAt)), 9), proj_id, 0 From Project where proj_id = ${req.body.proj_id}`;
+        const query2 = `insert into ProjInvite(in_hash, proj_id, is_timeless) select left(sha1(concat(proj_name, createAt)), 9), proj_id, 0 From Project where proj_id = ${req.body.proj_id}`;
         conn = await db.getConnection();
         // start Transactions
         await conn.beginTransaction();
@@ -179,8 +184,8 @@ router.get('/code/:projid', async(req, res)=>{
         // start Transactions
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        console.log(result[0]);
         if(result[0] == null)throw Error('No code is exist');
+        // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
@@ -209,20 +214,33 @@ router.get('/code/:projid', async(req, res)=>{
 router.post('/admission', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `insert into ProjectMember(user_id, proj_id, user_name, user_email, proj_name, proj_contents, proj_color) 
-        select user_id, proj_id, user_name, user_email, proj_name, proj_contents, ${req.body.color}
-        from Users join Project on Project.proj_id = (select proj_id from ProjInvite where in_hash = ${req.body.invite_code})
-        where Users.user_id = ${req.user_id}`;
-        console.log(query);
+        const query = `select proj_id from ProjInvite where in_hash = ${req.body.invite_code}`;
+        // start Transaction
+        await conn.beginTransaction();
         conn = await db.getConnection();
-        await conn.query(query);
+        const [result] = await conn.query(query);
+        if(result[0] == null)throw Error('no data!');
+        const query1 = `select user_email, count(user_email) as count from ProjectMember where proj_id = ${result[0].proj_id}`;
+        const query2 = `insert into ProjectMember(user_id, proj_id, user_name, user_email, proj_name, proj_contents, proj_color) 
+        select user_id, proj_id, user_name, user_email, proj_name, proj_contents, ${req.body.color}
+        from Users join Project on Project.proj_id = ${result[0].proj_id}
+        where Users.user_id = ${req.user_id}`;
+        const query3 = `update Project set realcount = realcount + 1 where proj_id = ${result[0].proj_id}`;
+        await conn.query(query1);
+        await conn.query(query2);
+        await conn.query(query3);
+        // end Transaction
+        await conn.commit();
         conn.release();
+        // 메일 보내기
         return res.status(200).send({
             isSuccess: true,
             code: 200,
             message: 'admission success',
         });
     }catch(err){
+        await conn.rollback();
+        conn.release();
         return res.status(500).send({
             isSuccess: false,
             code: 500,
@@ -236,7 +254,7 @@ router.post('/admission', authJWT, async(req, res)=>{
 router.get('/my', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select proj_id, proj_name, proj_headcount, proj_startAt, proj_endAt, proj_contents from Project where proj_id 
+        const query = `select proj_id, proj_name, proj_headcount, proj_realcount, proj_startAt, proj_endAt, proj_contents from Project where proj_id 
         in (select proj_id from ProjectMember where user_id = ${req.user_id});`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
@@ -289,7 +307,7 @@ router.get('/member/:projid', async(req, res)=>{
 router.get('/:projid', async(req, res)=>{
     let conn = null;
     try{
-        const query = `select * from Project where proj_id = ${req.params.projid}`;
+        const query = `select * from Project join ProjectMember on Project.proj_id = ProjectMember.proj_id where Project.proj_id = ${req.params.projid}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         if(result[0] == null)throw Error();
@@ -333,6 +351,5 @@ router.get('/:startid/~/:endid', async(req, res)=>{
         });
     }
 });
-
 
 module.exports = router;
