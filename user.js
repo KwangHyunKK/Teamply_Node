@@ -41,6 +41,7 @@ router.post('/signup', verifysignup, async(req, res)=>{
             isSuccess: true,
             code: 200,
             message : 'signup complete!',
+            activate: code,
         });
     }catch(err){
         return res.status(400).send({
