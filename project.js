@@ -28,36 +28,38 @@ router.post('/', authJWT, async(req, res)=>{
         // start Transaction
         await conn.beginTransaction();
         const [result1] = await conn.query(query1);
-        if(result1[0] != null)throw Error();
+        if(result1[0] != null)throw Error(`Same Project is already exists! : get my Project`);
         await conn.query(query2);
         const [result] = await conn.query(query1);
         const query3 = `insert into ProjectMember(user_id, proj_id, user_name, user_email, proj_name, proj_contents, proj_color) 
         select user_id, proj_id, user_name, user_email, proj_name, proj_contents, ${proj.color}
         from Users join Project on Project.proj_id = ${result[0].proj_id}
         where Users.user_id = ${req.user_id}`;
+        const query4 = `insert into ProjInvite(in_hash, proj_id, is_timeless) select left(sha1(concat(proj_name, createAt)), 9), proj_id, 0 From Project where proj_id = ${result[0].proj_id}`;
         await conn.query(query3);
+        await conn.query(query4);
         // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code:200,
-            message: 'project create ok',
+            statuscode:200,
+            message: 'Project Create Success',
             data:{
                 result,
             }
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
-            isSuccess: false,
-            code: 500,
-            message: 'project create fail',
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            isSuccess: false,
+            statuscode: 400,
+            message: 'project create fail',
+            submessage: err.message,
+        });
     }
 })
 
@@ -68,33 +70,67 @@ router.put('/', authJWT, async(req, res)=>{
     try{
         // user Transaction
         const query1 = `select Exists (select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj.proj_id}) as success`;
-        const query2 = `update ProjectMember set proj_name = ${proj.proj_name}, proj_contents = ${proj.proj_contents}, proj_color = ${proj.proj_color}, updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
-        console.log(query1);
+        const query2 = `update ProjectMember set proj_name = ${proj.proj_name}, proj_contents = ${proj.proj_contents}, proj_color = ${proj.proj_color}, is_Finished = ${proj.is_Finished}, updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0].success == 0)throw Error('No Project!');
+        if(result[0].success == 0)throw Error('No Project : Create project please!');
         await conn.query(query2);
         // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
-            message: 'project update ok',
+            statuscode: 200,
+            message: 'Project Update Success',
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(401).send({
-            isSuccess: true,
-            code: 401,
-            message: 'project update error!',
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            message: 'Project Update fail',
+            submessage: err.message,
+        });
+    }
+})
+
+router.put('/finish', authJWT, async(req, res)=>{
+    let conn = null;
+    const proj = req.body;
+    try{
+        // user Transaction
+        const query1 = `select Exists (select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj.proj_id}) as success`;
+        const query2 = `update ProjectMember set is_Finished = ${proj.is_Finished}, updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
+        conn = await db.getConnection();
+        // start Transaction
+        await conn.beginTransaction();
+        const [result] = await conn.query(query1);
+        if(result[0].success == 0)throw Error('No Project : Create project please!');
+        await conn.query(query2);
+        // end Transaction
+        await conn.commit();
+        conn.release();
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            message: 'Project Update Success',
+        });
+    }catch(err){
+        if(conn!=null){
+            await conn.rollback();
+            conn.release();
+        }
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            message: 'Project Update fail',
+            submessage: err.message,
+        });
     }
 })
 
@@ -106,31 +142,32 @@ router.delete('/', authJWT, async(req, res)=>{
         const query1 = `delete from ScheduleMember where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
         const query2 = `delete from UserReview where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
         const query3 = `delete from ProjectMember where user_id = ${req.user_id} and proj_id = ${req.body.proj_id}`;
+        const query4 = `update Project set proj_realcount = proj_realcount - 1, updateAt = now() where proj_id = ${req.body.proj_id}`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         await conn.query(query1);
         await conn.query(query2);
         await conn.query(query3);
+        await conn.query(query4);
         // end Transaction 
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 500,
-            message: 'project delete ok',
+            statuscode: 500,
+            message: 'Project Delete Success!',
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
-            isSuccess: true,
-            code: 500,
-            message: 'project delete error!',
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            isSuccess: false,
+            statuscode: 400,
+            message: 'Project Delete Fail!',
+        });
     }
 })
 
@@ -148,28 +185,28 @@ router.post('/code', authJWT, async(req, res)=>{
         // start Transactions
         await conn.beginTransaction();
         const [result1] = await conn.query(query1);
-        if(result1[0] != null)throw Error('alreay Exist!');
+        if(result1[0] != null)throw Error('Invite Code is already exist! : Check your invite code');
         await conn.query(query2);
         const [result2] = await conn.query(query1);
-        if(result2[0] == null)throw Error('wrong proj_id');
+        if(result2[0] == null)throw Error('Your project id is not correct : Check your project id');
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
-            message: 'create project invite code ok',
+            statuscode: 200,
+            message: 'Create project invite code Success!',
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
-            isSuccess: true,
-            code: 500,
-            message: err.message,
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            isSuccess: false,
+            statuscode: 400,
+            message: 'Create project invite code Fail',
+            submessage: err.message,
+        });
     }
 })
 
@@ -184,28 +221,27 @@ router.get('/code/:projid', async(req, res)=>{
         // start Transactions
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0] == null)throw Error('No code is exist');
+        if(result[0] == null)throw Error('Code is not exist : Check your invite code');
         // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             data : {
                 result,
             },
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
-            isSuccess: false,
-            code: 500,
-            message: err.message,
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            isSuccess: false,
+            statuscode: 400,
+            message: err.message,
+        });
     }
 })
 
@@ -215,36 +251,41 @@ router.post('/admission', authJWT, async(req, res)=>{
     let conn = null;
     try{
         const query = `select proj_id from ProjInvite where in_hash = ${req.body.invite_code}`;
+        conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
-        conn = await db.getConnection();
         const [result] = await conn.query(query);
-        if(result[0] == null)throw Error('no data!');
-        const query1 = `select user_email, count(user_email) as count from ProjectMember where proj_id = ${result[0].proj_id}`;
+        if(result[0] == null)throw Error('No Project with your invite code : Check invite code');
+        const query1 = `select Exists(select * from ProjectMember where proj_id = ${result[0].proj_id} and user_id = ${req.user_id}) as success`;
         const query2 = `insert into ProjectMember(user_id, proj_id, user_name, user_email, proj_name, proj_contents, proj_color) 
         select user_id, proj_id, user_name, user_email, proj_name, proj_contents, ${req.body.color}
         from Users join Project on Project.proj_id = ${result[0].proj_id}
         where Users.user_id = ${req.user_id}`;
-        const query3 = `update Project set realcount = realcount + 1 where proj_id = ${result[0].proj_id}`;
-        await conn.query(query1);
+        const query3 = `update Project set proj_realcount = proj_realcount + 1 where proj_id = ${result[0].proj_id}`;
+        const [result1] = await conn.query(query1);
+        if(result1[0].success != 0)throw Error('Already Join Project!');    
         await conn.query(query2);
         await conn.query(query3);
         // end Transaction
         await conn.commit();
         conn.release();
         // 메일 보내기
+        // mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.//(user.name, code));
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message: 'admission success',
         });
     }catch(err){
-        await conn.rollback();
-        conn.release();
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
         return res.status(500).send({
             isSuccess: false,
             code: 500,
             message: 'admission fail',
+            submessage: err.message,
         });
     }
 })
@@ -254,11 +295,33 @@ router.post('/admission', authJWT, async(req, res)=>{
 router.get('/my', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select proj_id, proj_name, proj_headcount, proj_realcount, proj_startAt, proj_endAt, proj_contents from Project where proj_id 
-        in (select proj_id from ProjectMember where user_id = ${req.user_id});`;
+        const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt, proj_color 
+        from Project join ProjectMember as p on Project.proj_id = p.proj_id where p.user_id = ${req.user_id} and Project.is_Finished = ${0}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
-        if(result[0] == null)throw Error();
+        conn.release();
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            data:{
+                result,
+            },
+        });
+    }catch(err){
+        return res.status(400).send({
+            isSuccess: true,
+            statuscode: 400,
+            message: 'Bad request',
+        });
+    }
+});
+
+router.get('/my/color', authJWT, async(req, res)=>{
+    let conn = null;
+    try{
+        const query = `select proj_color as color from ProjectMember where user_id = ${req.user_id}`;
+        conn = await db.getConnection();
+        const [result] = await conn.query(query);
         conn.release();
         return res.status(200).send({
             isSuccess: true,
@@ -271,6 +334,30 @@ router.get('/my', authJWT, async(req, res)=>{
         return res.status(400).send({
             isSuccess: true,
             code: 400,
+            message: 'Bad request',
+        });
+    }
+});
+
+router.get('/my/finish', authJWT, async(req, res)=>{
+    let conn = null;
+    try{
+        const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt
+        from Project join ProjectMember as p on Project.proj_id = p.proj_id where p.user_id = ${req.user_id} and Project.is_Finished = ${1}`;
+        conn = await db.getConnection();
+        const [result] = await conn.query(query);
+        conn.release();
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            data:{
+                result,
+            },
+        });
+    }catch(err){
+        return res.status(400).send({
+            isSuccess: true,
+            statuscode: 400,
             message: 'Bad request',
         });
     }
@@ -288,7 +375,7 @@ router.get('/member/:projid', async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             data:{
                 result,
             },
@@ -296,7 +383,7 @@ router.get('/member/:projid', async(req, res)=>{
     }catch(err){
         return res.status(400).send({
             isSuccess: true,
-            code: 400,
+            statuscode: 400,
             message: 'Bad request',
         });
     }
@@ -314,7 +401,7 @@ router.get('/:projid', async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             data:{
                 result,
             },
@@ -322,7 +409,7 @@ router.get('/:projid', async(req, res)=>{
     }catch(err){
         return res.status(400).send({
             isSuccess: true,
-            code: 400,
+            statuscode: 400,
             message: 'Bad request',
         });
     }
@@ -338,7 +425,7 @@ router.get('/:startid/~/:endid', async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             data:{
                 result,
             },
@@ -346,7 +433,7 @@ router.get('/:startid/~/:endid', async(req, res)=>{
     }catch(err){
         return res.status(400).send({
             isSuccess: true,
-            code: 400,
+            statuscode: 400,
             message: 'Bad request',
         });
     }
