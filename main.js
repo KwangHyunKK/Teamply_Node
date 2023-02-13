@@ -9,6 +9,8 @@ const timetable = require('./timetable');
 const crypto = require('crypto');
 const logger = require('./config/logger');
 const morganMiddleware = require('./config/morganMiddleware');
+const reviewRouter = require('./review'); // where is reviewRouter?
+const userfileRouter = require('./userfile');
 const server = app.listen(3000, '0.0.0.0', ()=>{
     logger.info(`Server start Listening on port 3000`);
     console.log('Express Server start port 3000');
@@ -26,18 +28,9 @@ app.get('/', async(req, res)=>{
     }
 })
 
-app.get('/:email', async(req, res)=>{
-    try{
-        await email('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port,req.params.email, {"emailSubject" : 'Teamply 서버 구동 확인', 
-        "emailHtml" : `<b>현재 팀플리 서버가 열심히 돌아가고 있습니다</b>`});
-        return res.status(200).send('200 ok');
-    }catch(err){
-        return res.status(401).send("401 error!");
-    }
-})
-
 app.use('/user', userRouter);
 app.use('/project', projRouter);
 app.use('/schedule', schRouter);
-// app.use('/alarm', alarmRouter);
-app.use('/timetable', timetable)
+app.use('/timetable', timetable);
+app.use('/review', reviewRouter);
+app.use('/userfile', userfileRouter);
