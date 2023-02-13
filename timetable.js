@@ -24,13 +24,14 @@ router.put('/', authJWT, async(req,res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message: 'all user read success!',
             data: result,
         });
     }catch(err){
         return res.status(500).send({
             isSuccess: false,
+            statuscode: 500,
             message: 'all user read fail!',
         });
     }
@@ -45,13 +46,14 @@ router.get('/', authJWT, async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message: 'all user read success!',
             data: result,
         });
     }catch(err){
         return res.status(500).send({
             isSuccess: false,
+            statuscode: 500,
             message: 'all user read fail!',
         });
     }
@@ -72,7 +74,7 @@ router.delete('/', authJWT, async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message: 'all user read success!',
             data: result,
         });
@@ -81,6 +83,7 @@ router.delete('/', authJWT, async(req, res)=>{
         conn.release();
         return res.status(500).send({
             isSuccess: false,
+            statuscode: 500,
             message: 'all user read fail!',
         });
     }
