@@ -33,21 +33,19 @@ router.post('/signup', verifysignup, async(req, res)=>{
         conn = await db.getConnection();
         await conn.query(query1);
         conn.release();
-        mail.sendPDFMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email, {"emailSubject" : '[Teamply] User 활성화', 
-        "emailHtml" : `<b>안녕하세요, ${user.name}님.</b> <br/>
-        <b>아래의 ${code}를 입력하시면 이메일 인증이 되며 팀플리 회원가입이 완료됩니다.</b> <br/>
-        <b>팀플리와 함께 즐거운 팀플되세요:) </b>`});
+        mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(user.name, code));
+
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
-            message : 'signup complete!',
+            statuscode: 200,
+            message : 'Sign up Success!',
             activate: code,
         });
     }catch(err){
         return res.status(400).send({
             isSuccess: false,
-            code: 400,
-            message: 'signup error!',
+            statuscode: 400,
+            message: 'Sign up Fail!',
         });
     }
 });
@@ -70,11 +68,9 @@ router.post('/login', async(req, res)=>{
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(loginQuery);
-        if(result[0] == null)throw Error('No user!');
-        if(result[0].activate == 0 || result[0].is_resigned == 1)
-        {
-            await mail.sendPDFMail();
-            throw Error('Activate User please!');
+        if(result[0] == null)throw Error('Login Error : Sign Up please!');
+        if(result[0].activate == 0 || result[0].is_resigned == 1){
+            throw Error('Login Error : Activate User please!');
         }
         const result_value = {
             id: result[0].id,
@@ -82,28 +78,29 @@ router.post('/login', async(req, res)=>{
             hash: result[0].hash,
             ip: ip
         }
-        const accessToken = jwt.sign(result[0]);
+        const accessToken = jwt.sign(result_value);
         const refreshToken = jwt.refresh();
         const hash = '\''.concat('', result[0].hash).concat('', '\''); 
         const tokenkey = '\''.concat('', refreshToken).concat('', '\'');
         const jwtQuery = `insert into LogIn(user_id, user_hash, loginIP, plainText) values(${result[0].id}, ${hash}, ${result[0].ip}, ${tokenkey})`;
         let message = 'login complete';
-        if(result[0].ip != ip){
-            otherquery = `UPDATE Users set updateIP = ${ip} where user_id = ${result[0].id}`;
-            await conn.query(otherquery);
-            mail.sendPDFMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email,
-            {"emailSubject" : '[Teamply] User 다른 IP 로그인', 
-            "emailHtml" : `<b>안녕하세요, ${result[0].name}님.</b> <br/>
-            <b>기존 ${result[0].ip}가 아닌 ${ip}에서 접속이 확인되었습니다.</b> <br/>
-            <b>팀플리와 함께 즐거운 팀플되세요:) </b>`} );
-            message = message + 'from another IP';
-        }
+        // if(result[0].ip != ip){
+        //     otherquery = `UPDATE Users set updateIP = ${ip} where user_id = ${result[0].id}`;
+        //     await conn.query(otherquery);
+        //     mail.sendPDFMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email,
+        //     {"emailSubject" : '[Teamply] User 다른 IP 로그인', 
+        //     "emailHtml" : `<b>안녕하세요, ${result[0].name}님.</b> <br/>
+        //     <b>기존 ${result[0].ip}가 아닌 ${ip}에서 접속이 확인되었습니다.</b> <br/>
+        //     <b>팀플리와 함께 즐거운 팀플되세요:) </b>`} );
+        //     message = message + 'from another IP';
+        // }
         await conn.query(jwtQuery);
         // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
+            statuscode:200,
             message: message,
             data:{
                 accessToken,
@@ -111,12 +108,15 @@ router.post('/login', async(req, res)=>{
             }
         });
     }catch(err){
-        await conn.rollback();
-        conn.release();
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
         return res.status(400).send({
             isSuccess: false,
-            code: 500,
-            message: err.message,
+            statuscode: 500,
+            message: 'Login Error!',
+            submessage: err.message,
         });
     }
 })
@@ -131,47 +131,50 @@ router.delete('/resign', authJWT, async(req, res)=>{
     let conn = null;
     try{
         const user = req.body;
-        const hash = '\''.concat('', req.user_hash).concat('', '\''); 
         const query1= `update Users set is_resigned = ${1}, updateAt = now() where user_id = ${req.user_id} and user_pw = sha2(${user.pw}, 256) and user_name = ${user.name}`;
         const query2=`delete from LogIn where user_id = ${req.user_id}`;
+        const query3=`delete from UserInfo where user_id = ${req.user_id}`;
+        const query4=`delete from TimeTable where user_id = ${req.user_id}`;
         conn = await db.getConnection();
         // start Transaction
         await conn.beginTransaction();
         conn = await db.getConnection();
         await conn.query(query1);
         await conn.query(query2);
+        await conn.query(query3);
+        await conn.query(query4);
         // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
-            message: 'account delete!',
+            statuscode: 200,
+            message: 'Account Delete Success!',
         });
     }catch(err){
         await conn.rollback();
         conn.release();
         return res.status(401).send({
             isSuccess: false,
-            code: 401,
-            message: 'account delete error : unauthorized!',
+            statuscode: 401,
+            message: 'Accound Delete Error',
+            submessage: 'Check your token or name& password!'
         });
     }
 })
-
 
 // 프로필 얻는 코드
 router.get('/my/profile', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const getUserQuery = `select * from UserInfo where user_id = ${req.user_id}`;
+        const getUserQuery = `select user_id, school, major, mbti, evaluation, date_format(createAt, '%Y-%m-%d') as createAt, date_format(updateAt, '%Y-%m-%d') as updateAt from UserInfo where user_id = ${req.user_id}`;
         conn = await db.getConnection();
         const [result] = await conn.query(getUserQuery);
-        if(result[0] == null)throw Error();
+        if(result[0] == null)throw Error('No Profile Data!');
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             data: {
                 result,
             }
@@ -179,8 +182,9 @@ router.get('/my/profile', authJWT, async(req, res)=>{
     }catch(err){
         return res.status(500).send({
             isSuccess: false,
-            code: 500,
-            message: 'profile read error',
+            statuscode: 500,
+            message: 'Profile Get Fail',
+            submessage: err.message,
         });
     }
 });
@@ -189,14 +193,14 @@ router.get('/my/profile', authJWT, async(req, res)=>{
 router.get('/my/account', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const getUserQuery = `select * from Users where user_id = ${req.user_id}`;
+        const getUserQuery = `select user_id, user_name, user_email, updateIP as IP, activate, is_resigned, date_format(createAt, '%Y-%m-%d') as createAt, date_format(updateAt, '%Y-%m-%d') as updateAt from Users where user_id = ${req.user_id}`;
         conn = await db.getConnection();
         const [result] = await conn.query(getUserQuery);
-        if(result[0] == null)throw new Error('no result!');
+        if(result[0] == null)throw new Error('No Account Data!');
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             data: {
                 result,
             }
@@ -204,8 +208,9 @@ router.get('/my/account', authJWT, async(req, res)=>{
     }catch(err){
         return res.status(500).send({
             isSuccess: false,
-            code: 500,
-            message: 'account read error!',
+            statuscode: 500,
+            message: 'Account Get Fail',
+            submessage: err.message,
         });
     }
 });
@@ -222,7 +227,7 @@ router.put('/my/account', authJWT, async(req, res)=>{
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0].success == 0)throw Error('unauthorized!');
+        if(result[0].success == 0)throw Error('No account data! : Activate User');
         await conn.query(query2);
         // end Transaction
         await conn.commit();
@@ -232,16 +237,19 @@ router.put('/my/account', authJWT, async(req, res)=>{
         // 변경사항 필요
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message: 'account update!',
         });
     }catch(err){
-        await conn.rollback();
-        conn.release();
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
         return res.status(401).send({
             isSuccess: false,
-            code: 401,
+            statuscode: 401,
             message: err.message,
+            submessage: err.message,
         });
     }
 })
@@ -258,23 +266,26 @@ router.put('/my/profile', authJWT, async(req, res)=>{
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0].success == 0)throw Error('no data!');
+        if(result[0].success == 0)throw Error('No Profile data! : Activate User');
         await conn.query(query2);
         // end Transaction
         await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message : 'update profile',
         });
     }catch(err){
-        await conn.rollback();
-        conn.release();
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
         return res.status(500).send({
             isSuccess: false,
-            code: 500,
+            statuscode: 500,
             message: 'account update error!',
+            submessage: err.message,
         });
     }
 })
@@ -293,7 +304,7 @@ router.put('/password', authJWT, async(req, res)=>{
         // start Transaction
         await conn.beginTransaction();
         const [result] = await conn.query(query1);
-        if(result[0].success == 0)throw Error();
+        if(result[0].success == 0)throw Error('No User data : login!');
         conn = await db.getConnection();
         await conn.query(query2);
         // end Transaction
@@ -301,16 +312,18 @@ router.put('/password', authJWT, async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
-            message: 'account update!',
+            statuscode: 200,
+            message: 'Password update success!',
         });
     }catch(err){
-        await conn.rollback();
-        conn.release();
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
         return res.status(401).send({
             isSuccess: false,
-            code: 401,
-            message: 'Unauthorized!',
+            statuscode: 401,
+            message: 'Password update Fail',
         });
     }
 })
@@ -361,21 +374,52 @@ router.get('/checkToken', authJWT, async(req, res)=>{
     try{
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message : 'Authorized token',
         });
     }catch(err){
         return res.status(401).send({
             isSuccess: false,
-            code: 401,
+            statuscode: 401,
             message : 'Invalid token',
         });
     }
 })
 
+router.post('/activate', async(req, res)=>{
+    let conn = null;
+    const user = req.body;
+    try{
+        const checkQuery = `select user_id as id, user_name as name, user_email as email, updateIP as ip, activate, is_resigned from Users 
+        where user_email = ${user.email} and user_pw = sha2(${user.pw}, 256)`;
+        console.log(checkQuery);
+        conn = await db.getConnection();
+        const [result] = await conn.query(checkQuery);
+        const code = crypto.createHash('sha1').update(user.email.substring(1, user.email.length-1)).digest('hex').substring(0, 8);
+        conn.release();        
+        if(result[0] == null){
+            throw err("No user is here!");
+        }else{
+            if(result[0].activate == 1 && result[0].is_resigned == 0)throw Error("No need Activate!");
+            mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(result[0].name, code));
+            return res.status(200).send({
+                isSuccess: true,
+                code: 200,
+                activate: code,
+            })
+        }
+    }catch(err){
+        return res.status(500).send({
+            isSuccess: false,
+            code: 500,
+            message: err.message,
+        })
+    }
+})
+
 // hash 값을 통해서 유저를 활성화시키는 함수
 // activate와 activate/callback 함수로 변경할 필요가 있음
-router.post('/activate', async(req, res)=>{
+router.post('/activate/callback', async(req, res)=>{
     // use transaction
     try{
         const user = req.body;
@@ -387,7 +431,7 @@ router.post('/activate', async(req, res)=>{
         if(result[0] == null)throw new Error('not match');
         const updateQuery = `update Users set activate = 1, is_resigned = 0, updateAt = now() where user_id = ${result[0].user_id}`;
         const UserInfoQuery = `insert into UserInfo(user_id, school, major, mbti, evaluation) select user_id, null, null, null, null from Users where user_id = ${result[0].user_id}`;
-        let tableQuery = `insert into TimeTable(user_id, sun, mon, tue, wed, thur, fri, sat) values(${result[0].user_id}, ${0}, ${0}, ${0}, ${0}, ${0}, ${0}, ${0})`;
+        const tableQuery = `insert into TimeTable(user_id, sun, mon, tue, wed, thur, fri, sat) values(${result[0].user_id}, ${0}, ${0}, ${0}, ${0}, ${0}, ${0}, ${0})`;
         await conn.query(updateQuery);
         await conn.query(UserInfoQuery);
         await conn.query(tableQuery);
@@ -396,18 +440,17 @@ router.post('/activate', async(req, res)=>{
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            code: 200,
+            statuscode: 200,
             message : 'Activate user success',
         });
     }catch(err){
-        if(conn != null)
-        {
+        if(conn != null){
             await conn.rollback();
             conn.release();
         }
         return res.status(409).send({
             isSuccess: false,
-            code: 409,
+            statuscode: 409,
             message : 'Activate user failed',
         });
     }
