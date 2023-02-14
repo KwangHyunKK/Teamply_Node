@@ -246,10 +246,11 @@ router.get('/my', authJWT, async(req, res)=>{
     }
 });
 
-router.get('/:projid', async(req, res)=>{
+router.get('/project/:projid', async(req, res)=>{
     let conn = null;
     try{
-        const query = `select * from Schedule join ScheduleMember on Schedule.proj_id = ScheduleMember.proj_id where projd_id = ${req.params.projid}`;
+        const query = `select sch_id, proj_id, sch_title, sch_contents,  date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
+        from Schedule where proj_id = ${req.params.projid};`
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
