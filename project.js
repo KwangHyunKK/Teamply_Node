@@ -99,41 +99,6 @@ router.put('/', authJWT, async(req, res)=>{
     }
 })
 
-router.put('/finish', authJWT, async(req, res)=>{
-    let conn = null;
-    const proj = req.body;
-    try{
-        // user Transaction
-        const query1 = `select Exists (select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj.proj_id}) as success`;
-        const query2 = `update ProjectMember set is_Finished = ${proj.is_Finished}, updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
-        conn = await db.getConnection();
-        // start Transaction
-        await conn.beginTransaction();
-        const [result] = await conn.query(query1);
-        if(result[0].success == 0)throw Error('No Project : Create project please!');
-        await conn.query(query2);
-        // end Transaction
-        await conn.commit();
-        conn.release();
-        return res.status(200).send({
-            isSuccess: true,
-            statuscode: 200,
-            message: 'Project Update Success',
-        });
-    }catch(err){
-        if(conn!=null){
-            await conn.rollback();
-            conn.release();
-        }
-        return res.status(401).send({
-            isSuccess: false,
-            statuscode: 401,
-            message: 'Project Update fail',
-            submessage: err.message,
-        });
-    }
-})
-
 // delete ProjectMembers
 router.delete('/', authJWT, async(req, res)=>{
     let conn = null;
@@ -295,7 +260,7 @@ router.post('/admission', authJWT, async(req, res)=>{
 router.get('/my', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt, proj_color 
+        const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt, proj_color as color 
         from Project join ProjectMember as p on Project.proj_id = p.proj_id where p.user_id = ${req.user_id} and Project.is_Finished = ${0}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
@@ -339,11 +304,108 @@ router.get('/my/color', authJWT, async(req, res)=>{
     }
 });
 
+router.post('/my/finish', authJWT, async(req, res)=>{
+    let conn = null;
+    const proj = req.body;
+    try{
+        // user Transaction
+        const query1 = `select Exists (select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj.proj_id}) as success`;
+        const query2 = `update ProjectMember set is_Finished = ${1}, updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
+        const query3 = `insert into CompletedProject(user_id, proj_id, comments1, comments2, comments3, comments4) 
+        select user_id, proj_id, '','','','' from ProjectMember where user_id = ${req.user_id} and proj_id = ${proj_proj_id};`
+        conn = await db.getConnection();
+        // start Transaction
+        await conn.beginTransaction();
+        const [result] = await conn.query(query1);
+        if(result[0].success == 0)throw Error('No Project : Create project please!');
+        await conn.query(query2);
+        await conn.query(query3);
+        // end Transaction
+        await conn.commit();
+        conn.release();
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            message: 'Project Update Success',
+        });
+    }catch(err){
+        if(conn!=null){
+            await conn.rollback();
+            conn.release();
+        }
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            message: 'Project Update fail',
+            submessage: err.message,
+        });
+    }
+})
+
+router.put('/my/finish', authJWT, async(req, res)=>{
+    let conn = null;
+    const proj = req.body;
+    try{
+        // user Transaction
+        const query1 = `select Exists (select * from CompletedProject where user_id = ${req.user_id} and proj_id = ${proj.proj_id}) as success`;
+        const query2 = `update CompletedProject set comments1 = ${proj.comments1}, comments2 = ${proj.comments2}, comments3 = ${proj.comments3}, comments4 = ${proj.comments4},
+        updateAt = now() where user_id = ${req.user_id} and proj_id = ${proj.proj_id}`;
+        conn = await db.getConnection();
+        // start Transaction
+        await conn.beginTransaction();
+        const [result] = await conn.query(query1);
+        if(result[0].success == 0)throw Error('No Project : Create project please!');
+        await conn.query(query2);
+        // end Transaction
+        await conn.commit();
+        conn.release();
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            message: 'Project Update Success',
+        });
+    }catch(err){
+        if(conn!=null){
+            await conn.rollback();
+            conn.release();
+        }
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            message: 'Project Update fail',
+            submessage: err.message,
+        });
+    }
+})
+
 router.get('/my/finish', authJWT, async(req, res)=>{
     let conn = null;
     try{
         const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt
         from Project join ProjectMember as p on Project.proj_id = p.proj_id where p.user_id = ${req.user_id} and Project.is_Finished = ${1}`;
+        conn = await db.getConnection();
+        const [result] = await conn.query(query);
+        conn.release();
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            data:{
+                result,
+            },
+        });
+    }catch(err){
+        return res.status(400).send({
+            isSuccess: true,
+            statuscode: 400,
+            message: 'Bad request',
+        });
+    }
+});
+
+router.get('/my/finish/comments', authJWT, async(req, res)=>{
+    let conn = null;
+    try{
+        const query = `select comments1, comments2, comments3, comments4 from CompletedProject where user_id = ${req.user_id}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
