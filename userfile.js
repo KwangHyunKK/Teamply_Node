@@ -18,7 +18,8 @@ router.post('/img', authJWT, upload.single('file'), async(req, res, next)=>{
     try{
         const str = req.file.originalname.split('.');
         const query1 = `delete from PhotoFile where user_id = ${req.user_id}`;
-        const query2 = `insert into PhotoFile(user_id, file_type, file_name) Values(${req.user_id}, ${str[1]}, ${req.file.originalname});`;
+        const query2 = `insert into PhotoFile(user_id, file_type, file_name) 
+        Values(${req.user_id}, ${"'" + str[1] + "'"}, ${"'" + str[0] + '_' + '.' + str[1] + "'"});`;
         conn = await db.getConnection();
         await conn.beginTransaction();
         await conn.query(query1);
@@ -35,7 +36,7 @@ router.post('/img', authJWT, upload.single('file'), async(req, res, next)=>{
             await conn.rollback();
             conn.release();
         }
-        return res.statusCode(400).send({
+        return res.status(400).send({
             isSuccess: false,
             statuscode:400,
             message: '파일 업로드 실패!',
@@ -46,15 +47,15 @@ router.post('/img', authJWT, upload.single('file'), async(req, res, next)=>{
 router.get('/img/:userid', authJWT, async(req, res, next)=>{
     let conn = null;
     try{
-        const query = `select file_name from PhotoFile where userid = ${req.params.userid}`;
+        const query = `select file_name from PhotoFile where user_id = ${req.params.userid}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
-        const stream = fs.createReadStream(`./uploads/${result[0].file_name}`);
+        // const stream = await fs.createReadStream(`./uploads/${result[0].file_name}`);
         res.setHeader('Content-Disposition', `attachment; filename=${result[0].file_name}`);
-        stream.pipe(res);
+        res.download(`./uploads/${result[0].file_name}`);
     }catch(err){
-        return res.statusCode(400).send({
+        return res.status(400).send({
             isSuccess: false,
             statuscode:400,
             message: '파일 다운로드 실패!',
