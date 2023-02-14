@@ -288,11 +288,15 @@ router.get('/my/color', authJWT, async(req, res)=>{
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
+        var colors = [];
+        for(const idx in result){
+            colors.push(result[idx].color);
+        }
         return res.status(200).send({
             isSuccess: true,
             code: 200,
             data:{
-                result,
+                colors,
             },
         });
     }catch(err){
