@@ -55,7 +55,7 @@ router.post('/middle', authJWT, async(req, res)=>{
 router.get('/fromme', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select * from UserReview where reviewer_id = ${req.user_id}`;
+        const query = `select ur_id as review_id, user_id, proj_id, comments, date_format(createAt, '%Y-%m-%d') as createAt, date_format(updateAt, '%Y-%m-%d') as updateAt from UserReview where reviewer_id = ${req.user_id}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
@@ -78,7 +78,7 @@ router.get('/fromme', authJWT, async(req, res)=>{
 router.get('/tome', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select * from UserReview where user_id = ${req.user_id}`;
+        const query = `select proj_id, comments, date_format(createAt, '%Y-%m-%d') as createAt, date_format(updateAt, '%Y-%m-%d') as updateAt from UserReview where user_id = ${req.user_id}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
         conn.release();
@@ -101,11 +101,11 @@ router.get('/tome', authJWT, async(req, res)=>{
 router.put('/', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query1 = `select Exists(select * from UserReview where ur_id = ${req.body.ur_id}) as success`;
-        const query2 = `update UserReview set comments = ${req.body.comments} where ur_id = ${req.body.ur_id}`;
+        const query1 = `select Exists(select * from UserReview where ur_id = ${req.body.review_id}) as success`;
+        const query2 = `update UserReview set comments = ${req.body.comments} where ur_id = ${req.body.review_id}`;
         conn = await db.getConnection();
         conn.beginTransaction();
-        const [result] = conn.query(query1);
+        const [result] = await conn.query(query1);
         if(result[0].success == 0)throw Error('No data');
         await conn.query(query2);
         await conn.commit();
@@ -124,6 +124,7 @@ router.put('/', authJWT, async(req, res)=>{
             isSuccess: false,
             statuscode: 400,
             message: 'update fail!',
+            submessage: err.message,
         })
     }
 })
