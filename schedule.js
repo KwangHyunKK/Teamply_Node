@@ -221,11 +221,25 @@ router.get('/member/:projid/:schid', async(req, res)=>{
         const [result] = await conn.query(query2);
         await conn.commit();
         conn.release();
-        return res.status(200).send(result);
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            data:{
+                result,
+            } 
+        });
     }catch(err){
-        await conn.rollback();
-        conn.release();
-        return res.status(401).send("401 error");
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            data:{
+                message: '특정 Project의 Schedule 보기 실패',
+            }
+        });
     }
 });
 
@@ -240,24 +254,59 @@ router.get('/my', authJWT, async(req, res)=>{
         const [result] = await conn.query(query);
         console.log(result[0]);
         conn.release();
-        return res.status(200).send(result);
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            data:{
+                result,
+            } 
+        });
     }catch(err){
-        return res.status(401).send("401 error");
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            data:{
+                message: 'My Project 보기 실패',
+            }
+        });
     }
 });
 
 router.get('/project/:projid', async(req, res)=>{
     let conn = null;
     try{
-        const query = `select sch_id, proj_id, sch_title, sch_contents,  date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
+        const query1 = `select Exists(select * from Project where proj_id = ${req.params.projid})as success`;
+        const query2 = `select sch_id, proj_id, sch_title, sch_contents,  date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
         from Schedule where proj_id = ${req.params.projid};`
         conn = await db.getConnection();
-        const [result] = await conn.query(query);
+        await conn.beginTransaction();
+        const [result1] = await conn.query(query1);
+        if(result1[0].success == 0)throw Error('Wrong proj_id');
+        const [result] = await conn.query(query2);
+        await conn.commit();
         conn.release();
-        return res.status(200).send(result);
+        return res.status(200).send({
+            isSuccess: true,
+            statuscode: 200,
+            data:{
+                result,
+            } 
+        });
     }catch(err){
-        return res.status(401).send("401 error");
+        if(conn != null){
+            await conn.rollback;
+            conn.release();
+        }
+        return res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            data:{
+                message: 'Project 일정 보기 실패',
+                submessage: err.message,
+            }
+        });
     }
 });
+
 
 module.exports = router;
