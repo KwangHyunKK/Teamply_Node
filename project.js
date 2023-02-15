@@ -431,17 +431,24 @@ router.get('/my/finish/comments', authJWT, async(req, res)=>{
 
 // check 
 // check projmember
-router.get('/member/:projid', async(req, res)=>{
+router.get('/member/:projid', authJWT, async(req, res)=>{
     let conn = null;
     try{
         const query = `select user_id, user_name, user_email from ProjectMember where proj_id = ${req.params.projid}`;
         conn = await db.getConnection();
-        const [result] = await conn.query(query);
-        if(result[0] == null)throw Error();
+        const [value] = await conn.query(query);
+        const t = [], temp = [];
+        if(value[0] == null)throw Error();
+        for(let i in value){
+            if(value[i].user_id == req.user_id)t.push(value[i]);
+            else temp.push(value[i]);
+        }
+        const result = [...t, ...temp];
+        console.log(result);
         conn.release();
         return res.status(200).send({
             isSuccess: true,
-            statuscode: 200,
+            code: 200,
             data:{
                 result,
             },
@@ -449,7 +456,7 @@ router.get('/member/:projid', async(req, res)=>{
     }catch(err){
         return res.status(400).send({
             isSuccess: true,
-            statuscode: 400,
+            code: 400,
             message: 'Bad request',
         });
     }
