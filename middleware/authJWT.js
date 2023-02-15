@@ -23,6 +23,12 @@ const authJWT = (req, res, next) => {
             message: result.message, // jwt가 만료되었다면 메세지는 'jwt expired'입니다.
         });
         }
+    }else{
+        res.status(401).send({
+            isSuccess: false,
+            statuscode: 401,
+            message: 'No header!'
+        });
     }
 };
 
