@@ -260,7 +260,7 @@ router.post('/admission', authJWT, async(req, res)=>{
 router.get('/my', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt, proj_color as color 
+        const query = `select p.proj_id, p.proj_name, p.proj_contents, proj_headcount, proj_realcount, date_format(proj_startAt, '%Y-%m-%d') as startAt, date_format(proj_endAt, '%Y-%m-%d') as endAt, proj_color as color 
         from Project join ProjectMember as p on Project.proj_id = p.proj_id where p.user_id = ${req.user_id} and Project.is_Finished = ${0}`;
         conn = await db.getConnection();
         const [result] = await conn.query(query);
