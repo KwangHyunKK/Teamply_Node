@@ -49,17 +49,16 @@ router.post('/', authJWT, async(req, res)=>{
             data: result,
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
-            ok: false,
-            statuscode: 500,
-            message: 'create schedule fail',
-            submessage: err.message,
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            ok: false,
+            statuscode: 400,
+            message: 'create schedule fail',
+            submessage: err.message,
+        });
     }
 })
 
@@ -79,14 +78,24 @@ router.delete('/', authJWT, async(req, res)=>{
         // End Transaction
         await conn.commit();
         conn.release();
-        return res.status(200).send('200 ok');
+        return res.status(200).send({
+            ok: true,
+            statuscode: 200,
+            message: 'delete Schedule success',
+            data: result,
+        });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(404).send('404 error!');
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        console.log('get user DB connection Error!');
+        return res.status(400).send({
+            ok: false,
+            statuscode: 400,
+            message: 'create schedule fail',
+            submessage: err.message,
+        });
     }
 })
 
@@ -115,16 +124,15 @@ router.put('/', authJWT, async(req, res)=>{
             message: 'update schedule success',
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
-            ok: false,
-            statuscode: 500,
-            message: 'update schedule fail',
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            ok: false,
+            statuscode: 400,
+            message: 'update schedule fail',
+        });
     }
 });
 
@@ -155,17 +163,16 @@ router.post('/member', authJWT, async(req, res)=>{
             message: 'create schedule member success',
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(500).send({
+        if(conn!=null){
+            await conn.rollback();
+            conn.release();
+        }
+        return res.status(500).send({
             ok: true,
             statuscode: 500,
             message: 'create schedule member fail',
             submessage: err.message,
         });
-        if(conn!=null){
-            await conn.rollback();
-            conn.release();
-        }
     }
 })
 
@@ -192,16 +199,15 @@ router.delete('/member', authJWT, async(req, res)=>{
             message: "Member delete complete!",
         });
     }catch(err){
-        console.log('get user DB connection Error!');
-        res.status(400).send({
-            isSuccess: false,
-            statuscode: 400,
-            message: "member delete fail!",
-        });
         if(conn!=null){
             await conn.rollback();
             conn.release();
         }
+        return res.status(400).send({
+            isSuccess: false,
+            statuscode: 400,
+            message: "member delete fail!",
+        });
     }
 })
 
