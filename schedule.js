@@ -302,12 +302,28 @@ router.get('/member/:projid/:schid', async(req, res)=>{
 router.get('/my', authJWT, async(req, res)=>{
     let conn = null;
     try{
-        const query = `select sch_id, proj_id, sch_title, sch_contents, sch_progress, date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
-        from Schedule where proj_id in (select proj_id from ScheduleMember where user_id = ${req.user_id});`;
-        console.log(query);
+        const query1 = `select proj_id, proj_color from ProjectMember where user_id = ${req.user_id} order by proj_color asc`;
+        const query2 = `select s.sch_id, s.proj_id, s.sch_title, sch_num, sch_contents, sch_progress,
+        date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
+        from Schedule as s join (select * from ScheduleMember where user_id = ${req.user_id}) as sm on s.proj_id = sm.proj_id and s.sch_id = sm.sch_id;`;
         conn = await db.getConnection();
-        const [result] = await conn.query(query);
-        console.log(result[0]);
+        await conn.beginTransaction();
+        const [result1] = await conn.query(query1);
+        const [result2] = await conn.query(query2);
+        const result = new Array();
+        if(result2.length != 0 && result1.length != 0){
+            for(let i in result1){
+                for(let j in result2){
+                    console.log(result1[i].proj_id,  result2[j].proj_id, result2[j].sch_id);
+                    if(result1[i].proj_id == result2[j].proj_id){
+                        result.push(Object.assign(result2[j], result1[i]));
+                    }
+                }
+            }
+        }else{
+            result = result2;
+        }
+        await conn.commit();
         conn.release();
         return res.status(200).send({
             isSuccess: true,
@@ -317,6 +333,10 @@ router.get('/my', authJWT, async(req, res)=>{
             } 
         });
     }catch(err){
+        if(conn != null){
+            await conn.rollback();
+            conn.release();
+        }
         return res.status(401).send({
             isSuccess: false,
             statuscode: 401,
