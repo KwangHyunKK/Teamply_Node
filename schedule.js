@@ -62,6 +62,55 @@ router.post('/', authJWT, async(req, res)=>{
     }
 })
 
+router.post('/static', authJWT, async(req, res)=>{
+    let conn = null;
+    const sch = req.body;
+    try{
+        // proj member add 
+        // user Transaction
+        const query = `select Exists(select * from ProjectMember where user_id = ${req.user_id} and proj_id = ${sch.proj_id}) as success`;
+        const query1 = `insert into Schedule(proj_id, sch_title, sch_num, sch_contents, sch_progress, sch_startAt, sch_endAt)
+        select proj_id, ${sch.sch_title}, ${sch.sch_num}, ${sch.sch_contents}, ${sch.sch_progress}, ${sch.startAt}, ${sch.endAt} from Project where proj_id = ${sch.proj_id}`;
+        const query2 = `select sch_id, proj_id from Schedule where proj_id = ${sch.proj_id} and sch_title = ${sch.sch_title}`;
+        conn = await db.getConnection();
+        // start Transaction
+        await conn.beginTransaction();
+        const [result2] = await conn.query(query);
+        if(result2[0].success == 0)throw Error('No authorized!'); // 다른 proj에 대한 권한이 없다
+        const [result1] = await conn.query(query2);
+        if(result1[0] != null)throw Error('already exist!');
+        await conn.query(query1);
+        const [result] = await conn.query(query2);
+        // const query3 = `insert into ScheduleMember(user_id, sch_id, proj_id) select user_id, sch_id, a.proj_id
+        // from (select * from ProjectMember where user_id in (${string})) 
+        // as a join (select sch_id, proj_id from Schedule where proj_id = ${sch.proj_id}) as b on a.proj_id = b.proj_id where sch_id = ${result[0].sch_id};`;
+        const query3 = `insert into ScheduleMember(user_id, sch_id, proj_id) select user_id, sch_id, a.proj_id
+        from (select * from ProjectMember where user_id = ${req.user_id}) 
+        as a join (select sch_id, proj_id from Schedule where proj_id = ${sch.proj_id}) as b on a.proj_id = b.proj_id where sch_id = ${result[0].sch_id};`;
+        await conn.query(query3);
+        if(result[0] == null)throw Error('no update!');
+        await conn.commit();
+        conn.release();
+        return res.status(200).send({
+            ok: true,
+            code: 200,
+            message: 'create schedule success',
+            data: result,
+        });
+    }catch(err){
+        if(conn!=null){
+            await conn.rollback();
+            conn.release();
+        }
+        res.status(500).send({
+            ok: false,
+            code: 500,
+            message: 'create schedule fail',
+            submessage: err.message,
+        });
+    }
+})
+
 // delete schedule
 router.delete('/', authJWT, async(req, res)=>{
     let conn = null;
@@ -282,7 +331,7 @@ router.get('/project/:projid', async(req, res)=>{
     let conn = null;
     try{
         const query1 = `select Exists(select * from Project where proj_id = ${req.params.projid})as success`;
-        const query2 = `select sch_id, proj_id, sch_title, sch_contents,  date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
+        const query2 = `select sch_id, proj_id, sch_title, sch_contents, sch_progress, date_format(sch_startAt, '%Y-%m-%d') as startAt, date_format(sch_endAt, '%Y-%m-%d') as endAt
         from Schedule where proj_id = ${req.params.projid};`
         conn = await db.getConnection();
         await conn.beginTransaction();
