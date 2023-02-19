@@ -27,14 +27,24 @@ router.post('/signup', verifysignup, async(req, res)=>{
     try{
         const user = req.body;
         const ip = ip_util.inet_aton(requestIP.getClientIp(req));
-        const query1 = `insert into Users(user_name, user_email, user_pw, accessConsent, serviceConsent, createIP, updateIP, activate, is_resigned) 
-        values(${user.name}, ${user.email}, sha2(${user.pw}, 256), ${user.accessConsent}, ${user.serviceConsent}, ${ip},${ip}, ${0}, ${0})`;
+        // const query1 = `insert into Users(user_name, user_email, user_pw, accessConsent, serviceConsent, createIP, updateIP, activate, is_resigned) 
+        // values(${user.name}, ${user.email}, sha2(${user.pw}, 256), ${user.accessConsent}, ${user.serviceConsent}, ${ip},${ip}, ${0}, ${0})`;
         const code = crypto.createHash('sha1').update(user.email.substring(1, user.email.length-1)).digest('hex').substring(0, 8);
-        conn = await db.getConnection();
-        await conn.query(query1);
-        conn.release();
-        mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(user.name, code));
-
+        // conn = await db.getConnection();
+        // await conn.query(query1);
+        // conn.release();
+        // mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(user.name, code));
+        if(code == user.code.substring(1, user.code.length - 1)){
+            const query1 = `insert into Users(user_name, user_email, user_pw, accessConsent, serviceConsent, createIP, updateIP, activate, is_resigned) 
+            values(${user.name}, ${user.email}, sha2(${user.pw}, 256), ${user.accessConsent}, ${user.serviceConsent}, ${ip},${ip}, ${1}, ${0})`;
+            conn = await db.getConnection();
+            // start Transaction
+            await conn.query(query1);
+            // end Transaction
+            conn.release();
+        }else{
+            throw Error('Code is not correct!');
+        }
         return res.status(200).send({
             isSuccess: true,
             statuscode: 200,
@@ -390,24 +400,25 @@ router.post('/activate', async(req, res)=>{
     let conn = null;
     const user = req.body;
     try{
-        const checkQuery = `select user_id as id, user_name as name, user_email as email, updateIP as ip, activate, is_resigned from Users 
-        where user_email = ${user.email} and user_pw = sha2(${user.pw}, 256)`;
-        console.log(checkQuery);
-        conn = await db.getConnection();
-        const [result] = await conn.query(checkQuery);
+        // const checkQuery = `select user_id as id, user_name as name, user_email as email, updateIP as ip, activate, is_resigned from Users 
+        // where user_email = ${user.email} and user_pw = sha2(${user.pw}, 256)`;
+        // console.log(checkQuery);
+        // conn = await db.getConnection();
+        // const [result] = await conn.query(checkQuery);
         const code = crypto.createHash('sha1').update(user.email.substring(1, user.email.length-1)).digest('hex').substring(0, 8);
-        conn.release();        
-        if(result[0] == null){
-            throw err("No user is here!");
-        }else{
-            if(result[0].activate == 1 && result[0].is_resigned == 0)throw Error("No need Activate!");
-            mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(result[0].name, code));
-            return res.status(200).send({
-                isSuccess: true,
-                code: 200,
-                activate: code,
-            })
-        }
+        mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(user.name, code));
+        // conn.release();        
+        // if(result[0] == null){
+        //     throw err("No user is here!");
+        // }else{
+        //     if(result[0].activate == 1 && result[0].is_resigned == 0)throw Error("No need Activate!");
+        //     mail.sendEMail('팀플리',process.env.senderMail,process.env.senderPass,process.env.senderSmtp,process.env.Port, process.env.email1, mail.activateUser(result[0].name, code));
+        return res.status(200).send({
+            isSuccess: true,
+            code: 200,
+            activate: code,
+        })
+        // }
     }catch(err){
         return res.status(500).send({
             isSuccess: false,
