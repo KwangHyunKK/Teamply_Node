@@ -1,5 +1,6 @@
-### Teamply_Node_Pangma's
+### Teamply_Node.js Team
 
+### [세부내용 확인](https://www.notion.so/Teamply-0cf89fb056c6405d99cbea7bd418291e)
 <hr>
 
 #### Versions & dependencies
